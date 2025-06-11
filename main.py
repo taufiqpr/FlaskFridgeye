@@ -20,13 +20,13 @@ app = Flask(__name__)
 CORS(app)
 
 BASE_URL = "https://api.spoonacular.com"
-API_KEY = "b8255df64c2043928c54a0b72fe09f2c"
+API_KEY = ""
 
-EMAIL_ADDRESS = 'taufiqpr3@gmail.com'
-EMAIL_PASSWORD = 'twgu jhuf motf hgcm' 
+EMAIL_ADDRESS = ''
+EMAIL_PASSWORD = '' 
 
 
-client = MongoClient('mongodb://localhost:27017/')
+client = MongoClient('')
 db = client['fridgeye']
 users_collection = db['users']
 
@@ -50,7 +50,7 @@ def google_auth():
     token = data.get("id_token")
 
     try:
-        CLIENT_ID = "465809809624-mtch196j1bvb016kar2l734daqat5kla.apps.googleusercontent.com"
+        CLIENT_ID = ""
         idinfo = id_token.verify_oauth2_token(token, grequests.Request(), CLIENT_ID)
 
         email = idinfo["email"]
