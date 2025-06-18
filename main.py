@@ -1,7 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_jwt_extended import create_access_token, JWTManager, jwt_required, get_jwt_identity
 from flask_cors import CORS
-from pymongo import MongoClient
 from datetime import datetime, timedelta
 from flask import request, jsonify
 from google.oauth2 import id_token
@@ -11,8 +10,12 @@ import secrets
 import requests
 import smtplib
 import random
+from pymongo import MongoClient
+import os
+from dotenv import load_dotenv
 from email.message import EmailMessage 
 from base64 import b64decode
+from zoneinfo import ZoneInfo
 
 otp_storage = {}
 
@@ -22,13 +25,22 @@ CORS(app)
 BASE_URL = "https://api.spoonacular.com"
 API_KEY = ""
 
-EMAIL_ADDRESS = ''
-EMAIL_PASSWORD = '' 
+EMAIL_ADDRESS = 'taufiqpr3@gmail.com'
+EMAIL_PASSWORD = 'twgu jhuf motf hgcm' 
 
 
-client = MongoClient('')
+load_dotenv()
+
+username = os.getenv("MONGODB_USERNAME")
+password = os.getenv("MONGODB_PASSWORD")
+
+uri = f"mongodb+srv://{username}:{password}@cluster0.qujj9ga.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+
+client = MongoClient(uri)
+
 db = client['fridgeye']
 users_collection = db['users']
+login_history_collection = db['login_history']
 
 app.config['JWT_SECRET_KEY'] = 'fridgeeye'
 jwt = JWTManager(app)
@@ -215,26 +227,76 @@ def resend_otp_register():
 @app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
-    email = data.get('email')
+    email = data.get('email', '').strip().lower()
     password = data.get('password')
 
+    user_agent = request.headers.get('User-Agent')
+    timestamp = datetime.now(ZoneInfo("Asia/Jakarta")).strftime('%Y-%m-%d %H:%M:%S')
+
     if not email or not password:
+        login_history_collection.insert_one({
+            'user_email': email,
+            'timestamp': timestamp,
+            'device': user_agent,
+            'status': 'failed',
+            'reason': 'missing email/password'
+        })
         return jsonify({'message': 'Email dan password harus diisi'}), 400
 
     user = users_collection.find_one({'email': email})
     if not user:
+        login_history_collection.insert_one({
+            'user_email': email,
+            'timestamp': timestamp,
+            'device': user_agent,
+            'status': 'failed',
+            'reason': 'user not found'
+        })
         return jsonify({'message': 'Akun tidak ditemukan'}), 404
 
     if not user.get('is_verified', False):
+        login_history_collection.insert_one({
+            'user_email': email,
+            'timestamp': timestamp,
+            'device': user_agent,
+            'status': 'failed',
+            'reason': 'account not verified'
+        })
         return jsonify({'message': 'Akun belum diverifikasi. Silakan cek email Anda untuk OTP.'}), 403
 
     if not bcrypt.checkpw(password.encode('utf-8'), user['password']):
+        login_history_collection.insert_one({
+            'user_email': email,
+            'timestamp': timestamp,
+            'device': user_agent,
+            'status': 'failed',
+            'reason': 'wrong password'
+        })
         return jsonify({'message': 'Password salah'}), 401
+
+    login_history_collection.insert_one({
+        'user_email': email,
+        'timestamp': timestamp,
+        'device': user_agent,
+        'status': 'success'
+    })
 
     access_token = create_access_token(identity=email, expires_delta=timedelta(minutes=30))
 
     return jsonify({'message': 'Login berhasil', 'token': access_token}), 200
 
+@app.route('/login-history', methods=['GET'])
+@jwt_required()
+def get_login_history():
+    current_user_email = get_jwt_identity()
+
+    history_cursor = login_history_collection.find(
+        {'user_email': current_user_email},
+        {'_id': 0}  
+    ).sort('timestamp', -1)
+
+    history_list = list(history_cursor)
+    return jsonify(history_list), 200
 
 @app.route('/users', methods=['GET'])
 @jwt_required()
@@ -317,7 +379,17 @@ def delete_account(user_id):
         return jsonify({'message': 'Akses ditolak'}), 403
 
     users_collection.delete_one({'_id': ObjectId(user_id)})
+
+    login_history_collection.delete_many({'user_email': current_user_email})
+
     return jsonify({'message': 'Akun berhasil dihapus'}), 200
+
+
+@app.route('/', methods=['GET'])
+def hallo():
+    return jsonify({
+        "msg": "API IS READYYY MANNNNN"
+    })
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
