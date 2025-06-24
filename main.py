@@ -23,7 +23,7 @@ app = Flask(__name__)
 CORS(app)
 
 BASE_URL = "https://api.spoonacular.com"
-API_KEY = ""
+API_KEY = "b8255df64c2043928c54a0b72fe09f2c"
 
 EMAIL_ADDRESS = 'taufiqpr3@gmail.com'
 EMAIL_PASSWORD = 'twgu jhuf motf hgcm' 
@@ -62,7 +62,7 @@ def google_auth():
     token = data.get("id_token")
 
     try:
-        CLIENT_ID = ""
+        CLIENT_ID = "465809809624-mtch196j1bvb016kar2l734daqat5kla.apps.googleusercontent.com"
         idinfo = id_token.verify_oauth2_token(token, grequests.Request(), CLIENT_ID)
 
         email = idinfo["email"]
@@ -73,7 +73,19 @@ def google_auth():
             users_collection.insert_one({
                 "email": email,
                 "username": username,
+                "is_verified": True  
             })
+
+        # Tambahkan login history di sini
+        user_agent = request.headers.get('User-Agent')
+        timestamp = datetime.now(ZoneInfo("Asia/Jakarta")).strftime('%Y-%m-%d %H:%M:%S')
+
+        login_history_collection.insert_one({
+            'user_email': email,
+            'timestamp': timestamp,
+            'device': user_agent,
+            'status': 'success'
+        })
 
         access_token = create_access_token(identity=email)
 
@@ -234,44 +246,16 @@ def login():
     timestamp = datetime.now(ZoneInfo("Asia/Jakarta")).strftime('%Y-%m-%d %H:%M:%S')
 
     if not email or not password:
-        login_history_collection.insert_one({
-            'user_email': email,
-            'timestamp': timestamp,
-            'device': user_agent,
-            'status': 'failed',
-            'reason': 'missing email/password'
-        })
         return jsonify({'message': 'Email dan password harus diisi'}), 400
 
     user = users_collection.find_one({'email': email})
     if not user:
-        login_history_collection.insert_one({
-            'user_email': email,
-            'timestamp': timestamp,
-            'device': user_agent,
-            'status': 'failed',
-            'reason': 'user not found'
-        })
         return jsonify({'message': 'Akun tidak ditemukan'}), 404
 
     if not user.get('is_verified', False):
-        login_history_collection.insert_one({
-            'user_email': email,
-            'timestamp': timestamp,
-            'device': user_agent,
-            'status': 'failed',
-            'reason': 'account not verified'
-        })
         return jsonify({'message': 'Akun belum diverifikasi. Silakan cek email Anda untuk OTP.'}), 403
 
     if not bcrypt.checkpw(password.encode('utf-8'), user['password']):
-        login_history_collection.insert_one({
-            'user_email': email,
-            'timestamp': timestamp,
-            'device': user_agent,
-            'status': 'failed',
-            'reason': 'wrong password'
-        })
         return jsonify({'message': 'Password salah'}), 401
 
     login_history_collection.insert_one({
@@ -284,6 +268,7 @@ def login():
     access_token = create_access_token(identity=email, expires_delta=timedelta(minutes=30))
 
     return jsonify({'message': 'Login berhasil', 'token': access_token}), 200
+
 
 @app.route('/login-history', methods=['GET'])
 @jwt_required()
