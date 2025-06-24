@@ -22,11 +22,11 @@ otp_storage = {}
 app = Flask(__name__)
 CORS(app)
 
-BASE_URL = "https://api.spoonacular.com"
-API_KEY = "b8255df64c2043928c54a0b72fe09f2c"
+BASE_URL = ""
+API_KEY = ""
 
-EMAIL_ADDRESS = 'taufiqpr3@gmail.com'
-EMAIL_PASSWORD = 'twgu jhuf motf hgcm' 
+EMAIL_ADDRESS = ''
+EMAIL_PASSWORD = '' 
 
 
 load_dotenv()
@@ -34,7 +34,7 @@ load_dotenv()
 username = os.getenv("MONGODB_USERNAME")
 password = os.getenv("MONGODB_PASSWORD")
 
-uri = f"mongodb+srv://{username}:{password}@cluster0.qujj9ga.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+uri = f""
 
 client = MongoClient(uri)
 
@@ -62,7 +62,7 @@ def google_auth():
     token = data.get("id_token")
 
     try:
-        CLIENT_ID = "465809809624-mtch196j1bvb016kar2l734daqat5kla.apps.googleusercontent.com"
+        CLIENT_ID = ""
         idinfo = id_token.verify_oauth2_token(token, grequests.Request(), CLIENT_ID)
 
         email = idinfo["email"]
